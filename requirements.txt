@@ -6,3 +6,4 @@ pandas
 requests
 streamlit
 TikTokApi
+2captcha-python

@@ -7,7 +7,7 @@ import os
 import re
 import pandas as pd
 import pyktok as pyk
-
+import selectfileandfolder
 
 url_regex = r'(?<=\.com/)(.+?)(?=\?|$)'
 
@@ -19,7 +19,8 @@ proxies = [
 async def init_browser():
     proxy = random.choice(proxies)
     playwright = await async_playwright().start()
-    browser = await playwright.chromium.launch(headless=True,proxy={"server": proxy})
+    # browser = await playwright.chromium.launch(headless=True,proxy={"server": proxy})
+    browser = await playwright.chromium.launch(headless=True)
     return browser,playwright
 
 async def get_video_data(browser, query, count=10):
@@ -124,18 +125,18 @@ def save_metadata(data, filename):
 
     if os.path.exists(filename):
         # Lire les données existantes
-        existing_data = pd.read_csv(filename)
+        existing_data = pd.read_csv(filename, encoding='utf-8')
 
         # Vérifier si l'enregistrement existe déjà
         if not new_data.isin(existing_data.to_dict('list')).all(axis=None):
             # Ajouter les nouvelles données s'il n'y a pas de doublon
             updated_data = pd.concat([existing_data, new_data], ignore_index=True)
-            updated_data.to_csv(filename, index=False)
+            updated_data.to_csv(filename, index=False, encoding='utf-8-sig')
         else:
             print("Les données existent déjà.")
     else:
         # Si le fichier n'existe pas, créer un nouveau fichier CSV avec les nouvelles données
-        new_data.to_csv(filename, index=False)
+        new_data.to_csv(filename, index=False, encoding='utf-8-sig')
 
 
 def download_video(url, output_path):
@@ -156,14 +157,38 @@ async def main():
     browser,playwright = await init_browser()
     recherche = input("Enter your search: ")
     number = int(input("Enter quantity : "))
+    dossier =  None
+    demandemetadonne = None
+    filemetadata = None
     if browser:
         videos = await get_video_data(browser, recherche, count=number)
         for video in videos:
             if 'video_url' in video and video['video_url']:
                 try:
-                    print(f"Downloading video: {video['title']}")
-                    download_video(video['video_url'], f"videos/")
-                    save_metadata(video, 'metadata.csv')
+                    while dossier == None:
+                        print("Enter the folder of videos:")
+                        dossier = selectfileandfolder.select_directory()
+                        print(dossier)
+                        print(f"Downloading video: {video['title']}")
+
+                                        # Corriger la condition de la boucle while
+                    while demandemetadonne not in ["Yes", "Non"]:
+                        demandemetadonne = input("Do you want to download metadata (Yes/Non):")      
+                    download_video(video['video_url'], dossier)                                
+                    if demandemetadonne == "Yes" and filemetadata==None:
+                        print("Sélectionner le dossier pour les métadonnées")
+                        dossiermetadata = selectfileandfolder.select_directory()
+                        print(dossiermetadata)
+                        
+                        filemetadata = input("Entrez le nom du fichier de métadonnée:")
+                        file = f'{dossiermetadata}/{filemetadata}.csv'      
+                        # Passer le nom du fichier de métadonnées
+                        save_metadata(video, file)
+                    elif filemetadata != None:
+                        save_metadata(video, file)
+                    elif demandemetadonne == "Non":
+                        continue 
+                    # save_metadata(video, 'metadata.csv')
                 except:
                     print("Vous ne pouvez malheuresement pas télécharger cette vidéo")
             else:
